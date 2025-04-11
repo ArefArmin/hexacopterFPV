@@ -1,0 +1,1068 @@
+<!--
+    Hexacopter FPV Control Interface
+    Author: ArefArmin
+    Created: 2025-04-06
+    Last Updated: 2025-04-07 20:33:43 UTC
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#141414">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>Hexacopter Control Interface</title>
+    <style>
+        :root {
+            /* Colors */
+            --primary-color: #2196F3;
+            --secondary-color: #1976D2;
+            --danger-color: #f44336;
+            --success-color: #4CAF50;
+            --warning-color: #ff9800;
+            --dark-color: #1E1E1E;
+            --darker-color: #141414;
+            --light-color: #333333;
+            --text-color: #FFFFFF;
+            --text-secondary: #B0B0B0;
+
+            /* Layout */
+            --control-panel-height: min(200px, 28vh);
+            --telemetry-panel-height: min(120px, 15vh);
+            --joystick-size: min(200px, 45vw);
+            --joystick-knob-size: min(70px, 18vw);
+            --button-height: min(40px, 6vh);
+            --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+            --video-margin-bottom: calc(var(--control-panel-height) + 10px);
+            --video-container-width: min(800px, 70vw);
+            --video-aspect-ratio: 4/3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        html {
+            height: -webkit-fill-available;
+        }
+
+        body {
+            height: 100vh;
+            height: -webkit-fill-available;
+            width: 100vw;
+            overflow: hidden;
+            position: fixed;
+            background-color: var(--darker-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .telemetry-panel {
+            width: 100vw;
+            margin: 0;
+            padding: 0.5rem 0;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr) !important;
+            gap: 0.3rem;
+            background-color: var(--dark-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 100;
+            height: var(--telemetry-panel-height);
+        }
+
+        .status-indicator {
+            width: min(8px, 2vw);
+            height: min(8px, 2vw);
+            border-radius: 50%;
+        }
+
+        .status-ok { background-color: var(--success-color); }
+        .status-warning { background-color: var(--warning-color); }
+        .status-error { background-color: var(--danger-color); }
+
+        .data-item {
+            margin: 0 0.3rem;
+            padding: min(0.25rem, 1vh) min(0.5rem, 1.5vw);
+            height: calc(var(--telemetry-panel-height) - 1rem);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--light-color);
+            border-radius: min(5px, 1vw);
+            min-width: min(90px, 22vw) !important;
+        }
+
+        .data-label {
+            color: var(--text-secondary);
+            font-size: min(0.7rem, 2.5vh);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .data-value {
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: min(0.9rem, 3vh);
+            display: flex;
+            align-items: center;
+            gap: min(0.5rem, 1vw);
+        }
+
+        .video-container {
+            width: var(--video-container-width);
+            margin: 0 auto;
+            position: absolute;
+            aspect-ratio: var(--video-aspect-ratio);
+            background-color: var(--dark-color);
+            border-radius: min(10px, 2vw);
+            overflow: hidden;
+            left: 50%;
+            top: var(--telemetry-panel-height);
+            transform: translateX(-50%);
+            z-index: 50;
+        }
+
+        #video-feed {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #video-feed img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-controls {
+            position: absolute;
+            top: min(15px, 2vh);
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 min(15px, 2vw);
+            z-index: 60;
+        }
+
+        .video-controls .btn {
+            background-color: rgba(33, 150, 243, 0.8);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            min-width: min(90px, 25vw);
+            padding: min(0.5rem, 1.5vh) min(1rem, 3vw);
+        }
+
+        .video-controls .btn.recording {
+            background-color: var(--danger-color);
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: var(--danger-color);
+            display: none;
+            animation: blink 1s infinite;
+        }
+
+        .recording-indicator.active {
+            display: block;
+        }
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: min(1rem, 2vh) min(1rem, 2vw);
+            position: fixed;
+            bottom: var(--safe-area-bottom);
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: var(--control-panel-height);
+            background: none;
+        }
+
+        .joystick-container {
+            width: var(--joystick-size);
+            height: var(--joystick-size);
+            margin: 0;
+            touch-action: none;
+        }
+
+        .joystick {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            border: min(2px, 0.5vw) solid var(--primary-color);
+            box-shadow: 0 0 min(10px, 2.5vw) rgba(33, 150, 243, 0.3);
+            touch-action: none;
+        }
+
+        .joystick-knob {
+            width: var(--joystick-knob-size);
+            height: var(--joystick-knob-size);
+            background: radial-gradient(circle, var(--primary-color) 0%, var(--secondary-color) 100%);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 min(15px, 4vw) rgba(33, 150, 243, 0.5);
+            touch-action: none;
+            will-change: transform;
+        }
+
+        .joystick-knob:active {
+            box-shadow: 0 0 min(20px, 5vw) rgba(33, 150, 243, 0.8);
+        }
+
+        .btn {
+            height: var(--button-height);
+            border: none;
+            border-radius: min(5px, 1vw);
+            background-color: var(--primary-color);
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: min(1rem, 3.5vh);
+            display: flex;
+            align-items: center;
+            gap: min(0.5rem, 1.5vw);
+            padding: min(0.75rem, 2vh) min(1.5rem, 4vw);
+            transition: all 0.3s ease;
+            min-width: min(120px, 30vw);
+            justify-content: center;
+            touch-action: manipulation;
+        }
+
+        .btn svg {
+            width: min(20px, 5vw);
+            height: min(20px, 5vw);
+        }
+
+        .btn.armed {
+            background-color: var(--danger-color);
+        }
+
+        .center-controls {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            flex: 0 1 auto;
+            margin-bottom: 10px;
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+        }
+
+        .flight-mode-select {
+            background-color: var(--light-color);
+            color: var(--text-color);
+            padding: min(0.5rem, 1.5vh);
+            border: min(1px, 0.3vw) solid var(--primary-color);
+            border-radius: min(5px, 1vw);
+            width: 100%;
+            font-size: min(0.9rem, 3vh);
+            height: var(--button-height);
+        }
+
+        .obstacle-warning {
+            color: var(--warning-color);
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        #obstacle-distance.warning {
+            color: var(--warning-color);
+        }
+
+        .distance-alert {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--warning-color);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            z-index: 1000;
+            display: none;
+        }
+
+        /* Media Queries */
+        @media (orientation: portrait) and (min-width: 1080px) {
+            :root {
+                --video-container-width: 65vw;
+                --joystick-size: min(220px, 48vw);
+                --joystick-knob-size: min(80px, 20vw);
+                --control-panel-height: min(220px, 30vh);
+            }
+        }
+
+        @media (orientation: portrait) and (min-width: 768px) and (max-width: 1079px) {
+            :root {
+                --video-container-width: 70vw;
+                --joystick-size: min(200px, 45vw);
+                --joystick-knob-size: min(70px, 18vw);
+            }
+        }
+
+        @media (orientation: portrait) and (min-width: 481px) and (max-width: 767px) {
+            :root {
+                --video-container-width: 75vw;
+                --joystick-size: min(180px, 42vw);
+                --joystick-knob-size: min(65px, 16vw);
+            }
+        }
+
+        @media (orientation: portrait) and (max-width: 480px) {
+            :root {
+                --video-container-width: 85vw;
+                --joystick-size: min(160px, 40vw);
+                --joystick-knob-size: min(60px, 15vw);
+                --telemetry-panel-height: min(100px, 14vh);
+            }
+
+            .telemetry-panel {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .data-item {
+                margin: 0 0.2rem;
+                padding: min(0.2rem, 0.8vh) min(0.3rem, 1vw);
+            }
+        }
+
+        @media (orientation: landscape) {
+            :root {
+                --video-container-width: 50vw;
+                --control-panel-height: min(160px, 45vh);
+                --telemetry-panel-height: min(80px, 20vh);
+                --joystick-size: min(140px, 40vh);
+                --joystick-knob-size: min(50px, 15vh);
+            }
+
+            .video-container {
+                margin: 0 auto;
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
+            .telemetry-panel {
+                grid-template-columns: repeat(8, 1fr);
+                height: var(--telemetry-panel-height);
+            }
+        }
+
+        @media screen and (width: 1080px) and (height: 2400px) {
+            :root {
+                --video-container-width: 65vw;
+                --joystick-size: min(220px, 48vw);
+                --joystick-knob-size: min(80px, 20vw);
+                --control-panel-height: min(220px, 30vh);
+            }
+
+            .telemetry-panel {
+                padding: 0.6rem 0;
+            }
+
+            .video-controls {
+                top: min(20px, 2.5vh);
+            }
+        }
+
+        @supports (padding: max(0px)) {
+            .control-panel {
+                padding-bottom: max(var(--safe-area-bottom), 1rem);
+                padding-left: max(env(safe-area-inset-left), 1rem);
+                padding-right: max(env(safe-area-inset-right), 1rem);
+            }
+
+            .telemetry-panel {
+                padding-top: max(env(safe-area-inset-top), 0.5rem);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main-container">
+        <!-- Telemetry Panel -->
+        <div class="telemetry-panel">
+            <div class="data-item">
+                <div class="data-label">System Status</div>
+                <div class="data-value">
+                    <span class="status-indicator status-error"></span>
+                    <span id="system-status">Disconnected</span>
+                </div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Altitude</div>
+                <div class="data-value" id="current-altitude">0.0m</div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Speed</div>
+                <div class="data-value" id="current-speed">0.0m/s</div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Heading</div>
+                <div class="data-value" id="current-heading">0°</div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Distance</div>
+                <div class="data-value" id="distance-home">0.0m</div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Battery</div>
+                <div class="data-value" id="battery-voltage">0%</div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Obstacle</div>
+                <div class="data-value">
+                    <span id="obstacle-distance">0.0</span>cm
+                    <span id="obstacle-warning" class="status-indicator" style="display: none;"></span>
+                </div>
+            </div>
+
+            <div class="data-item">
+                <div class="data-label">Mode</div>
+                <select id="flight-mode" class="flight-mode-select">
+                    <option value="stabilize">Stabilize</option>
+                    <option value="alt_hold">Altitude Hold</option>
+                    <option value="pos_hold">Position Hold</option>
+                    <option value="auto">Auto</option>
+                    <option value="rtl">Return to Launch</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- نمایش هشدار مانع -->
+        <div id="obstacle-alert" class="distance-alert">
+            WARNING: Obstacle Detected!
+        </div>
+
+        <!-- Video Feed Container -->
+        <div class="video-container">
+            <div id="video-feed">
+                <!-- Video feed will be inserted here by JavaScript -->
+            </div>
+            
+            <div class="video-controls">
+                <button id="btn-record" class="btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                    </svg>
+                    Record
+                </button>
+                
+                <button id="btn-snapshot" class="btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    Photo
+                </button>
+            </div>
+            <div class="recording-indicator"></div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <!-- Left Joystick -->
+            <div class="joystick-container" id="left-stick">
+                <div id="left-joystick" class="joystick">
+                    <div class="joystick-knob"></div>
+                </div>
+            </div>
+
+            <!-- Right Joystick -->
+            <div class="joystick-container" id="right-stick">
+                <div id="right-joystick" class="joystick">
+                    <div class="joystick-knob"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Controls (ARM Button) -->
+        <div class="center-controls">
+            <button id="btn-arm" class="btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M2 12h20"/>
+                </svg>
+                Arm
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Constants
+        const PORTS = {
+            telemetry: 8000,
+            video: 8001,
+            control: 8002,
+            system: 8003
+        };
+
+        const CAMERA_SETTINGS = {
+            fpv: {
+                resolution: { width: 320, height: 240 },
+                fps: 60,
+                quality: 12,
+                format: 'JPEG'
+            },
+            photo: {
+                resolution: { width: 1600, height: 1200 },
+                quality: 4,
+                format: 'JPEG'
+            },
+            video: {
+                resolution: { width: 800, height: 600 },
+                fps: 30,
+                quality: 8,
+                format: 'JPEG'
+            }
+        };
+
+        const CONTROL_LIMITS = {
+            MAX_TILT_ANGLE: 30,    // degrees
+            MAX_YAW_RATE: 90,      // degrees per second
+            UPDATE_RATE: 50,       // milliseconds
+            MIN_SAFE_DISTANCE: 50  // centimeters
+        };
+
+        // Connection Manager Class
+        class ConnectionManager {
+            constructor() {
+                this.connections = {};
+                this.connectionStatus = {};
+                this.mediaCallbacks = {};
+                
+                Object.keys(PORTS).forEach(type => {
+                    this.connect(type);
+                });
+            }
+
+            connect(type) {
+                const port = PORTS[type];
+                const ws = new WebSocket(`ws://localhost:${port}`);
+                
+                ws.onopen = () => {
+                    console.log(`Connected to ${type} service`);
+                    this.connections[type] = ws;
+                    this.connectionStatus[type] = true;
+                    this.updateStatusIndicator(true);
+                    
+                    if (type === 'telemetry') {
+                        this.setupTelemetryHandlers(ws);
+                    } else if (type === 'video') {
+                        this.setupVideoHandlers(ws);
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log(`Disconnected from ${type} service`);
+                    this.connectionStatus[type] = false;
+                    this.updateStatusIndicator(false);
+                };
+
+                ws.onerror = (error) => {
+                    console.error(`${type} connection error:`, error);
+                    this.connectionStatus[type] = false;
+                    this.updateStatusIndicator(false);
+                };
+
+                return ws;
+            }
+
+            updateStatusIndicator(connected) {
+                const indicator = document.querySelector('.status-indicator');
+                const systemStatus = document.getElementById('system-status');
+                
+                if (Object.values(this.connectionStatus).every(status => status)) {
+                    indicator.className = 'status-indicator status-ok';
+                    systemStatus.textContent = 'Connected';
+                } else if (Object.values(this.connectionStatus).some(status => status)) {
+                    indicator.className = 'status-indicator status-warning';
+                    systemStatus.textContent = 'Partial Connection';
+                } else {
+                    indicator.className = 'status-indicator status-error';
+                    systemStatus.textContent = 'Disconnected';
+                }
+            }
+
+            setupTelemetryHandlers(ws) {
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    this.updateTelemetryDisplay(data);
+                };
+            }
+
+            setupVideoHandlers(ws) {
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'photo_taken') {
+                        if (this.mediaCallbacks.onPhotoTaken) {
+                            this.mediaCallbacks.onPhotoTaken(data.filename);
+                        }
+                    } else if (data.type === 'recording_started') {
+                        if (this.mediaCallbacks.onRecordingStarted) {
+                            this.mediaCallbacks.onRecordingStarted();
+                        }
+                    } else if (data.type === 'recording_stopped') {
+                        if (this.mediaCallbacks.onRecordingStopped) {
+                            this.mediaCallbacks.onRecordingStopped(data.filename);
+                        }
+                    }
+                };
+            }
+
+            updateTelemetryDisplay(data) {
+                if (data.altitude !== undefined) {
+                    document.getElementById('current-altitude').textContent = 
+                        data.altitude.toFixed(1) + 'm';
+                }
+                if (data.verticalSpeed !== undefined) {
+                    document.getElementById('current-speed').textContent = 
+                        data.verticalSpeed.toFixed(1) + 'm/s';
+                }
+                if (data.heading !== undefined) {
+                    document.getElementById('current-heading').textContent = 
+                        Math.round(data.heading) + '°';
+                }
+                if (data.distanceToHome !== undefined) {
+                    document.getElementById('distance-home').textContent = 
+                        data.distanceToHome.toFixed(1) + 'm';
+                }
+                if (data.batteryVoltage !== undefined) {
+                    document.getElementById('battery-voltage').textContent = 
+                        data.batteryPercentage + '%';
+                }
+
+                if (data.obstacle_sensor) {
+                    const obstacleDistance = document.getElementById('obstacle-distance');
+                    const obstacleWarning = document.getElementById('obstacle-warning');
+                    const obstacleAlert = document.getElementById('obstacle-alert');
+                    
+                    obstacleDistance.textContent = data.obstacle_sensor.distance.toFixed(1);
+                    
+                    if (data.obstacle_sensor.obstacle_detected) {
+                        obstacleWarning.style.display = 'inline-block';
+                        obstacleWarning.className = 'status-indicator status-warning';
+                        obstacleAlert.style.display = 'block';
+                        obstacleDistance.classList.add('warning');
+                    } else {
+                        obstacleWarning.style.display = 'none';
+                        obstacleAlert.style.display = 'none';
+                        obstacleDistance.classList.remove('warning');
+                    }
+                }
+            }
+
+            sendCommand(type, data) {
+                const ws = this.connections[type];
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        ...data,
+                        timestamp: '2025-04-07 20:35:42',
+                        user: 'ArefArmin'
+                    }));
+                }
+            }
+
+            onMediaCallback(type, callback) {
+                this.mediaCallbacks[type] = callback;
+            }
+        }
+
+        // Control System Class
+        class ControlSystem {
+            constructor(connectionManager) {
+                this.connectionManager = connectionManager;
+                this.armed = false;
+                this.recordingActive = false;
+                this.setupControls();
+                this.setupMediaCallbacks();
+            }
+
+            setupControls() {
+                this.leftJoystick = new Joystick(
+                    document.getElementById('left-joystick'),
+                    () => {}
+                );
+
+                this.rightJoystick = new Joystick(
+                    document.getElementById('right-joystick'),
+                    () => {}
+                );
+
+                // Setup Arm/Disarm button
+                const armButton = document.getElementById('btn-arm');
+                armButton.addEventListener('click', () => {
+                    if (!this.armed) {
+                        this.arm();
+                        armButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                            Disarm
+                        `;
+                        armButton.classList.add('armed');
+                    } else {
+                        this.disarm();
+                        armButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v20M2 12h20"/>
+                            </svg>
+                            Arm
+                        `;
+                        armButton.classList.remove('armed');
+                    }
+                });
+
+                // Setup Flight Mode Select
+                const flightModeSelect = document.getElementById('flight-mode');
+                flightModeSelect.addEventListener('change', (e) => {
+                    this.setFlightMode(e.target.value);
+                });
+
+                // Setup Camera Controls
+                const snapshotButton = document.getElementById('btn-snapshot');
+                const recordButton = document.getElementById('btn-record');
+                const recordingIndicator = document.querySelector('.recording-indicator');
+
+                snapshotButton.addEventListener('click', () => {
+                    this.takeSnapshot();
+                });
+
+                recordButton.addEventListener('click', () => {
+                    if (!this.recordingActive) {
+                        this.startRecording();
+                        recordButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="6" y="6" width="12" height="12" rx="4" fill="currentColor"/>
+                            </svg>
+                            Stop
+                        `;
+                        recordButton.classList.add('recording');
+                        recordingIndicator.classList.add('active');
+                    } else {
+                        this.stopRecording();
+                        recordButton.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                            </svg>
+                            Record
+                        `;
+                        recordButton.classList.remove('recording');
+                        recordingIndicator.classList.remove('active');
+                    }
+                    this.recordingActive = !this.recordingActive;
+                });
+
+                this.startControlLoop();
+            }
+
+            setupMediaCallbacks() {
+                this.connectionManager.onMediaCallback('onPhotoTaken', (filename) => {
+                    console.log('Photo saved:', filename);
+                });
+
+                this.connectionManager.onMediaCallback('onRecordingStarted', () => {
+                    console.log('Recording started');
+                });
+
+                this.connectionManager.onMediaCallback('onRecordingStopped', (filename) => {
+                    console.log('Recording saved:', filename);
+                });
+            }
+
+            startControlLoop() {
+                setInterval(() => {
+                    if (this.armed) {
+                        const leftValues = this.leftJoystick.getValues();
+                        const rightValues = this.rightJoystick.getValues();
+
+                        const controlData = {
+                            throttle: Math.round(((1 - leftValues.y) / 2) * 100),
+                            yaw: Math.round(leftValues.x * CONTROL_LIMITS.MAX_YAW_RATE),
+                            pitch: Math.round(rightValues.y * CONTROL_LIMITS.MAX_TILT_ANGLE),
+                            roll: Math.round(rightValues.x * CONTROL_LIMITS.MAX_TILT_ANGLE)
+                        };
+
+                        this.connectionManager.sendCommand('control', controlData);
+                    }
+                }, CONTROL_LIMITS.UPDATE_RATE);
+            }
+
+            arm() {
+                this.armed = true;
+                this.connectionManager.sendCommand('system', { command: 'arm' });
+                console.log('System armed');
+            }
+
+            disarm() {
+                this.armed = false;
+                this.connectionManager.sendCommand('system', { command: 'disarm' });
+                console.log('System disarmed');
+            }
+
+            setFlightMode(mode) {
+                this.connectionManager.sendCommand('system', {
+                    command: 'setFlightMode',
+                    mode: mode
+                });
+                console.log('Flight mode set to:', mode);
+            }
+
+            takeSnapshot() {
+                this.connectionManager.sendCommand('video', {
+                    command: 'snapshot',
+                    settings: CAMERA_SETTINGS.photo
+                });
+                console.log('Taking high-resolution photo');
+            }
+
+            startRecording() {
+                this.connectionManager.sendCommand('video', {
+                    command: 'startRecording',
+                    settings: CAMERA_SETTINGS.video
+                });
+                console.log('Starting video recording');
+            }
+
+            stopRecording() {
+                this.connectionManager.sendCommand('video', {
+                    command: 'stopRecording'
+                });
+                console.log('Stopping video recording');
+            }
+        }
+
+        // Joystick Class
+        class Joystick {
+            constructor(element, callback) {
+                this.element = element;
+                this.knob = element.querySelector('.joystick-knob');
+                this.callback = callback;
+                this.active = false;
+                this.touchId = null;
+                this.value = { x: 0, y: 0 };
+                this.origin = { x: 0, y: 0 };
+                this.bounds = { radius: 0 };
+
+                this.initializeKnob();
+                this.setupEventListeners();
+            }
+
+            initializeKnob() {
+                const rect = this.element.getBoundingClientRect();
+                this.bounds.radius = (rect.width - this.knob.offsetWidth) / 2;
+                this.knob.style.top = '50%';
+                this.knob.style.left = '50%';
+                this.knob.style.transform = 'translate(-50%, -50%)';
+            }
+
+            setupEventListeners() {
+                this.element.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+                document.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+                document.addEventListener('touchend', this.handleTouchEnd.bind(this));
+                document.addEventListener('touchcancel', this.handleTouchEnd.bind(this));
+
+                if (!('ontouchstart' in window)) {
+                    this.element.addEventListener('mousedown', this.handleStart.bind(this));
+                    document.addEventListener('mousemove', this.handleMove.bind(this));
+                    document.addEventListener('mouseup', this.handleEnd.bind(this));
+                }
+
+                window.addEventListener('resize', () => {
+                    this.initializeKnob();
+                });
+
+                this.element.addEventListener('contextmenu', e => e.preventDefault());
+            }
+
+            handleTouchStart(event) {
+                if (this.active) return;
+                event.preventDefault();
+                
+                const touch = event.changedTouches[0];
+                this.touchId = touch.identifier;
+                this.active = true;
+                
+                const rect = this.element.getBoundingClientRect();
+                this.origin = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2
+                };
+                this.bounds.radius = (rect.width - this.knob.offsetWidth) / 2;
+            }
+
+            handleTouchMove(event) {
+                if (!this.active) return;
+                event.preventDefault();
+                
+                const touch = Array.from(event.touches).find(t => t.identifier === this.touchId);
+                if (!touch) return;
+
+                const dx = touch.clientX - this.origin.x;
+                const dy = touch.clientY - this.origin.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+                const limitedDistance = Math.min(distance, this.bounds.radius);
+                const x = Math.cos(angle) * limitedDistance;
+                const y = Math.sin(angle) * limitedDistance;
+                
+                this.knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+                this.value = {
+                    x: x / this.bounds.radius,
+                    y: -y / this.bounds.radius
+                };
+
+                if (this.callback) {
+                    this.callback(this.value);
+                }
+            }
+
+            handleTouchEnd(event) {
+                const touch = Array.from(event.changedTouches).find(t => t.identifier === this.touchId);
+                if (!touch) return;
+                
+                this.active = false;
+                this.touchId = null;
+                this.value = { x: 0, y: 0 };
+                this.knob.style.transition = 'transform 0.2s ease-out';
+                this.knob.style.transform = 'translate(-50%, -50%)';
+                setTimeout(() => {
+                    this.knob.style.transition = '';
+                }, 200);
+
+                if (this.callback) {
+                    this.callback(this.value);
+                }
+            }
+
+            handleStart(event) {
+                if (this.active || 'ontouchstart' in window) return;
+                event.preventDefault();
+                this.active = true;
+                
+                const rect = this.element.getBoundingClientRect();
+                this.origin = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2
+                };
+                this.bounds.radius = (rect.width - this.knob.offsetWidth) / 2;
+            }
+
+            handleMove(event) {
+                if (!this.active || 'ontouchstart' in window) return;
+                event.preventDefault();
+                
+                const dx = event.clientX - this.origin.x;
+                const dy = event.clientY - this.origin.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+                const limitedDistance = Math.min(distance, this.bounds.radius);
+                const x = Math.cos(angle) * limitedDistance;
+                const y = Math.sin(angle) * limitedDistance;
+                
+                this.knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+                this.value = {
+                    x: x / this.bounds.radius,
+                    y: -y / this.bounds.radius
+                };
+
+                if (this.callback) {
+                    this.callback(this.value);
+                }
+            }
+
+            handleEnd() {
+                if (!this.active || 'ontouchstart' in window) return;
+                this.active = false;
+                this.value = { x: 0, y: 0 };
+                this.knob.style.transition = 'transform 0.2s ease-out';
+                this.knob.style.transform = 'translate(-50%, -50%)';
+                setTimeout(() => {
+                    this.knob.style.transition = '';
+                }, 200);
+
+                if (this.callback) {
+                    this.callback(this.value);
+                }
+            }
+
+            getValues() {
+                return this.value;
+            }
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            const connectionManager = new ConnectionManager();
+            const controlSystem = new ControlSystem(connectionManager);
+
+            const videoFeed = document.getElementById('video-feed');
+            const img = document.createElement('img');
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            videoFeed.appendChild(img);
+
+            function updateVideoFeed() {
+                const timestamp = Date.now();
+                const settings = CAMERA_SETTINGS.fpv;
+                img.src = `http://localhost:${PORTS.video}/stream?t=${timestamp}&mode=fpv&width=${settings.resolution.width}&height=${settings.resolution.height}&quality=${settings.quality}&fps=${settings.fps}`;
+            }
+
+            setInterval(updateVideoFeed, 1000 / CAMERA_SETTINGS.fpv.fps);
+        });
+    </script>
+</body>
+</html>
